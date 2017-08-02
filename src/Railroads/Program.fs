@@ -25,13 +25,13 @@ module TestMaybe =
 
   let basicTests () =
     info "basicTests"
-    let _n    = Nothing
-    let _0    = Just 0
-    let _1    = Just 1
-    let _3    = Just 3
-    let _4    = Just 4
-    let _dn   = fun _ -> Nothing
-    let _dp2  = fun v -> Just (v + 2)
+    let _n                  = Nothing
+    let _0    : Maybe<int>  = Just 0
+    let _1    : int maybe   = Just 1
+    let _3                  = Just 3
+    let _4                  = Just 4
+    let _dn                 = fun _ -> Nothing
+    let _dp2                = fun v -> Just (v + 2)
 
     check_eq _n (nothing)     "nothing"
     check_eq _1 (just 1 )     "just"
@@ -135,10 +135,65 @@ module TestMaybe =
       check_eq _4 tc2 "maybe - second case"
       check_eq _0 tc3 "maybe - third case"
       check_eq _n tc4 "maybe - fourth case"
-        
 
   let functionalTests () =
     highlight "TestMaybe.functionalTests"
+    indent basicTests
+// ----------------------------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------------------------
+module TestOutcome =
+  open Railroads.Core.Outcome
+
+  exception TestException
+
+  let basicTests () =
+    info "basicTests"
+    let _e    = Outcome (Nothing, BadTree.Empty)
+    let _1    = Outcome (Just 1 , BadTree.Empty)
+    let _3    = Outcome (Just 3 , BadTree.Empty)
+    let _4    = Outcome (Just 4 , BadTree.Empty)
+    let _bm   = Outcome (Nothing, BadTree.Leaf (MessageBadOutcome "Bad")) 
+    let _be   = Outcome (Nothing, BadTree.Leaf (ExceptionBadOutcome TestException)) 
+    let _bv   = Outcome (Nothing, BadTree.Leaf (BoxedBadOutcome<_> 123)) 
+    let _bm1  = Outcome (Just 1 , BadTree.Leaf (MessageBadOutcome "Bad")) 
+    let _bm3  = Outcome (Just 3 , BadTree.Leaf (MessageBadOutcome "Bad")) 
+    let _de   = fun _ -> _e
+    let _dp2  = fun v -> good (v + 2)
+    let _dbm  = fun v -> _bm
+    let _dbm1 = fun v -> _bm1
+
+    check_eq _e   (empty                      ) "empty"
+    check_eq _1   (good 1                     ) "good"
+    check_eq _bm  (badMessage "Bad"           ) "badMessage"
+    check_eq _bm  (badMessagef "Ba%s" "d"     ) "badMessagef"
+    check_eq _be  (badException TestException ) "badException"
+    check_eq _bv  (badValue 123)                "badValue"
+
+    check_eq _e   (bind _e _de )    "bind - empty  - empty"
+    check_eq _e   (bind _e _dp2)    "bind - empty  - +2"
+    check_eq _e   (bind _e _dbm)    "bind - good 1 - bad"
+    check_eq _e   (bind _1 _de)     "bind - good 1 - empty"
+    check_eq _3   (bind _1 _dp2)    "bind - good 1 - +2"
+    check_eq _bm  (bind _1 _dbm)    "bind - good 1 - bad"
+    check_eq _bm  (bind _bm1 _de)   "bind - bad 1  - empty"
+    check_eq _bm  (bind _bm1 _dp2)  "bind - bad 1  - +2"
+    check_eq _bm  (bind _bm1 _dbm)  "bind - bad 1  - bad"
+    check_eq _3   (_1 >>= _dp2  )   ">>= - good 1 - +2"
+
+    check_eq _e   (forceBind _e _de )   "forceBind - empty  - empty"
+    check_eq _e   (forceBind _e _dp2)   "forceBind - empty  - +2"
+    check_eq _e   (forceBind _e _dbm)   "forceBind - good 1 - bad"
+    check_eq _e   (forceBind _1 _de)    "forceBind - good 1 - empty"
+    check_eq _3   (forceBind _1 _dp2)   "forceBind - good 1 - +2"
+    check_eq _bm  (forceBind _1 _dbm)   "forceBind - good 1 - bad"
+    check_eq _bm  (forceBind _bm1 _de)  "forceBind - bad 1  - empty"
+    check_eq _bm3 (forceBind _bm1 _dp2) "forceBind - bad 1  - +2"
+    check_eq _bm  (forceBind _bm1 _dbm) "forceBind - bad 1  - bad"
+    check_eq _3   (_1 >>=! _dp2  )      ">>=! - good 1 - +2"
+
+  let functionalTests () =
+    highlight "TestOutcome.functionalTests"
     indent basicTests
 // ----------------------------------------------------------------------------------------------
 
@@ -147,6 +202,7 @@ module TestMaybe =
 let main argv = 
   try
     TestMaybe.functionalTests ()
+    TestOutcome.functionalTests ()
   with
   | e -> errorf "Exception: %s" e.Message
 

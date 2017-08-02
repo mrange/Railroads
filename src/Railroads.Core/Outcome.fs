@@ -19,33 +19,46 @@ namespace Railroads.Core
 // ----------------------------------------------------------------------------------------------
 type [<AbstractClass>] BadOutcome() =
   class
-    abstract Category       : string
-    abstract Description    : string
-    override x.ToString ()  = sprintf "Bad outcome: %s - %s" x.Category x.Description
+    abstract Category         : string
+    abstract Description      : string
+    abstract BadType          : System.Type
+    abstract BadValue         : obj
+    override x.ToString ()    = sprintf "Bad outcome: %s - %s" x.Category x.Description
+    override x.GetHashCode () = 
+      let bv = x.BadValue
+      if bv <> null then bv.GetHashCode () else 0x55555555
+    override x.Equals o       =
+      match o with
+      | :? BadOutcome as bo ->
+        let bv  = x.BadValue
+        let obv = bo.BadValue
+        if bv <> null && obv <> null then bv.Equals obv
+        else bv = null && obv = null
+      | _                   -> 
+        false
   end
 // ----------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------------------------
-type [<AbstractClass>] BoxedBadOutcome (bt: System.Type) =
+type [<AbstractClass>] BoxedBadOutcome () =
   class
     inherit BadOutcome ()
 
-    member x.BoxedType      = bt
-    abstract AsObj : unit -> obj
   end
 // ----------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------------------------
 type [<Sealed>] BoxedBadOutcome<'T> (v: 'T) =
   class
-    inherit BoxedBadOutcome (typeof<'T>)
+    inherit BoxedBadOutcome ()
 
     let d = sprintf "%A" v
 
     member   x.Boxed        = v
-    override x.AsObj ()     = box v
     override x.Category     = "Boxed"
     override x.Description  = d
+    override x.BadType      = typeof<'T>
+    override x.BadValue     = box v
   end
 
 type [<Sealed>] ExceptionBadOutcome (e: exn) =
@@ -57,6 +70,8 @@ type [<Sealed>] ExceptionBadOutcome (e: exn) =
     member   x.Exception    = e
     override x.Category     = "Exception"
     override x.Description  = d
+    override x.BadType      = typeof<exn>
+    override x.BadValue     = box e
   end
 // ----------------------------------------------------------------------------------------------
 
@@ -68,6 +83,8 @@ type [<Sealed>] MessageBadOutcome (m: string) =
     member   x.Message      = m
     override x.Category     = "Message"
     override x.Description  = m
+    override x.BadType      = typeof<string>
+    override x.BadValue     = box m
   end
 // ----------------------------------------------------------------------------------------------
 
