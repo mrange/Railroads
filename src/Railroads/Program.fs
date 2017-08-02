@@ -26,6 +26,7 @@ module TestMaybe =
   let basicTests () =
     info "basicTests"
     let _n    = Nothing
+    let _0    = Just 0
     let _1    = Just 1
     let _3    = Just 3
     let _4    = Just 4
@@ -70,6 +71,71 @@ module TestMaybe =
 
       check_eq _n (map m _n) "map - +1 - Nothing"
       check_eq _4 (map m _3) "map - +1 - Just 3"
+      check_eq _4 (_3 |>> m) "|>> - +1 - Just 3"
+
+    check_eq _n (flatten _n)        "flatten - Nothing"
+    check_eq _n (flatten (just _n)) "flatten - Just Nothing"
+    check_eq _1 (flatten (just _1)) "flatten - Just Just 1"
+
+    check_eq _n (andAlso _n _n)                   "andAlso - Nothing - Nothing"
+    check_eq _n (andAlso _1 _n)                   "andAlso - Just 1  - Nothing"
+    check_eq _n (andAlso _n _3)                   "andAlso - Nothing - Just 3"
+    check_eq (just struct (1, 3)) (andAlso _1 _3) "andAlso - Just 1  - Just 3"
+    check_eq (just struct (3, 1)) (_3 <&> _1)     "<&> - Just 3  - Just 1"
+    check_eq (just struct (3, 4)) (_3 .>>. _4)    ".>>. - Just 3  - Just 4"
+
+    check_eq _n (orElse _n _n) "orElse - Nothing - Nothing"
+    check_eq _1 (orElse _1 _n) "orElse - Just 1  - Nothing"
+    check_eq _3 (orElse _n _3) "orElse - Nothing - Just 3"
+    check_eq _1 (orElse _1 _3) "orElse - Just 1  - Just 3"
+    check_eq _1 (_1 <|> _3)    "<|> - Just 1  - Just 3"
+
+    check_eq _n (trace "T" _n) "trace - Nothing"
+    check_eq _1 (trace "T" _1) "trace - Nothing"
+
+    check_eq _n (fromObj null) "fromObj - null"
+    check_eq _1 (fromObj 1)    "fromObj - 1"
+
+    check_eq _n (fromOption None)     "fromOption - None"
+    check_eq _1 (fromOption (Some 1)) "fromOption - Some 1"
+
+    check_eq _n (fromResult (Error ())) "fromResult - Error ()"
+    check_eq _1 (fromResult (Ok 1))     "fromResult - Ok 1"
+
+    check_eq 2 (valueOr 2 _n) "valueOr - 2 - Nothing"
+    check_eq 1 (valueOr 2 _1) "valueOr - 2 - Just 1"
+
+    do
+      let tc1 =
+        maybe {
+          let! x = _1 // Tests Bind
+          let! y = _3
+          return x + y    // Tests Return
+        }
+      let tc2 =
+        maybe {
+          let! x = _1
+          let! y = _3
+          return! just (x + y)  // Tests ReturnFrom
+        }
+      let tc3 =
+        maybe {
+          if false then
+            return 1
+          // Tests Zero
+        }
+      let tc4 =
+        maybe {
+          let! x = _n
+          let! y = _3
+          return x + y
+        }
+     
+      check_eq _4 tc1 "maybe - first case"
+      check_eq _4 tc2 "maybe - second case"
+      check_eq _0 tc3 "maybe - third case"
+      check_eq _n tc4 "maybe - fourth case"
+        
 
   let functionalTests () =
     highlight "TestMaybe.functionalTests"
@@ -79,12 +145,15 @@ module TestMaybe =
 // ----------------------------------------------------------------------------------------------
 [<EntryPoint>]
 let main argv = 
-  TestMaybe.functionalTests ()
+  try
+    TestMaybe.functionalTests ()
+  with
+  | e -> errorf "Exception: %s" e.Message
 
   if errors = 0 then
     successf "Ran %d tests with no errors" tests
+    0
   else
     errorf "Ran %d tests with %d errors" tests errors
-
-  0
+    999
 // ----------------------------------------------------------------------------------------------
