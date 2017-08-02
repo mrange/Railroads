@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.26430.16
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Railroads", "Railroads.fsproj", "{B5699B9B-411D-45F1-8731-74EF1E872525}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Railroads.Core", "..\Railroads.Core\Railroads.Core.fsproj", "{5560391C-1D40-40A8-8001-D20B4E86D1C3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B5699B9B-411D-45F1-8731-74EF1E872525}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B5699B9B-411D-45F1-8731-74EF1E872525}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B5699B9B-411D-45F1-8731-74EF1E872525}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B5699B9B-411D-45F1-8731-74EF1E872525}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5560391C-1D40-40A8-8001-D20B4E86D1C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5560391C-1D40-40A8-8001-D20B4E86D1C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5560391C-1D40-40A8-8001-D20B4E86D1C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5560391C-1D40-40A8-8001-D20B4E86D1C3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
