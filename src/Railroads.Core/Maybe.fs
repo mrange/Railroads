@@ -101,7 +101,7 @@ module Maybe =
     match t with
     | Just v    -> v
     | Nothing   -> dv
-   
+
   type MaybeBuilder ()    =
     member inline x.Bind        (t, uf) = bind t uf
     member inline x.Return      v       = just v

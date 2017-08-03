@@ -24,7 +24,7 @@ type [<AbstractClass>] BadOutcome() =
     abstract BadType          : System.Type
     abstract BadValue         : obj
     override x.ToString ()    = sprintf "Bad outcome: %s - %s" x.Category x.Description
-    override x.GetHashCode () = 
+    override x.GetHashCode () =
       let bv = x.BadValue
       if bv <> null then bv.GetHashCode () else 0x55555555
     override x.Equals o       =
@@ -34,7 +34,7 @@ type [<AbstractClass>] BadOutcome() =
         let obv = bo.BadValue
         if bv <> null && obv <> null then bv.Equals obv
         else bv = null && obv = null
-      | _                   -> 
+      | _                   ->
         false
   end
 // ----------------------------------------------------------------------------------------------
@@ -184,9 +184,51 @@ module Outcome =
       | Outcome (umv, ubt)    -> Outcome (umv, tbt.Join ubt)
     | Outcome (Nothing, tbt)  -> Outcome (Nothing, tbt)
 
+  let bindLeft t uf     =
+    match t with
+    | Outcome (Just tv, tbt) when tbt.IsGood ->
+      match uf tv with
+      | Outcome (Just (), ubt)-> Outcome (Just tv, tbt.Join ubt)
+      | Outcome (Nothing, ubt)-> Outcome (Nothing, tbt.Join ubt)
+    | Outcome (tmv    , tbt)  -> Outcome (tmv, tbt)
+
+  let forceBindLeft t uf=
+    match t with
+    | Outcome (Just tv, tbt)  ->
+      match uf tv with
+      | Outcome (Just (), ubt)-> Outcome (Just tv, tbt.Join ubt)
+      | Outcome (Nothing, ubt)-> Outcome (Nothing, tbt.Join ubt)
+    | Outcome (tmv    , tbt)  -> Outcome (tmv, tbt)
+
+  let bindRight t uf    =
+    match t with
+    | Outcome (Just (), tbt) when tbt.IsGood ->
+      match uf () with
+      | Outcome (umv, ubt)    -> Outcome (umv, tbt.Join ubt)
+    | Outcome (tmv    , tbt)  -> Outcome (tmv, tbt)
+
+  let forceBindRight t uf=
+    match t with
+    | Outcome (Just (), tbt)  ->
+      match uf () with
+      | Outcome (umv, ubt)    -> Outcome (umv, tbt.Join ubt)
+    | Outcome (tmv    , tbt)  -> Outcome (tmv, tbt)
+
   let arrow f             = fun v -> good (f v)
   let kleisli tf uf       = fun v -> bind (tf v) uf
   let forceKleisli tf uf  = fun v -> forceBind (tf v) uf
+
+  let keepLeft t u        =
+    match t, u with
+    | Outcome (tmv, tbt), Outcome (_, ubt)  -> Outcome (tmv, tbt.Join ubt)
+
+  let delayKeepLeft t uf  =
+    match t with
+    | Outcome (Just v, tbt), Outcome (_, ubt)  -> Outcome (tmv, tbt.Join ubt)
+
+  let keepRight t u     =
+    match t, u with
+    | Outcome (_, tbt), Outcome (umv, ubt)  -> Outcome (umv, tbt.Join ubt)
 
   let apply f t         =
     match f, t with
@@ -268,14 +310,6 @@ module Outcome =
         Outcome (umv, tbt.Join ubt)
       | Outcome (_, ubt)                                ->
         Outcome (Nothing, (tbt.Join ubt).SuppressIfNeeded ())
-
-  let keepLeft t u      =
-    match t, u with
-    | Outcome (tmv, tbt), Outcome (_, ubt)  -> Outcome (tmv, tbt.Join ubt)
-
-  let keepRight t u     =
-    match t, u with
-    | Outcome (_, tbt), Outcome (umv, ubt)  -> Outcome (umv, tbt.Join ubt)
 
   let validate m v t    =
     match t with

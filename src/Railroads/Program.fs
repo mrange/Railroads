@@ -40,8 +40,8 @@ module TestMaybe =
     check_eq _n (bind _1 _dn ) "bind - Just 1  - Nothing"
     check_eq _n (bind _n _dp2) "bind - Nothing - +2"
     check_eq _3 (bind _1 _dp2) "bind - Just 1  - +2"
-
     check_eq _3 (_1 >>= _dp2)  ">>= - Just 1  - +2"
+
     do
       let a = arrow ((+) 2)
       check_eq _3 (a 1) "arrow"
@@ -130,7 +130,7 @@ module TestMaybe =
           let! y = _3
           return x + y
         }
-     
+
       check_eq _4 tc1 "maybe - first case"
       check_eq _4 tc2 "maybe - second case"
       check_eq _0 tc3 "maybe - third case"
@@ -151,17 +151,25 @@ module TestOutcome =
     info "basicTests"
     let _e    = Outcome (Nothing, BadTree.Empty)
     let _1    = Outcome (Just 1 , BadTree.Empty)
+    let _2    = Outcome (Just 2 , BadTree.Empty)
     let _3    = Outcome (Just 3 , BadTree.Empty)
     let _4    = Outcome (Just 4 , BadTree.Empty)
-    let _bm   = Outcome (Nothing, BadTree.Leaf (MessageBadOutcome "Bad")) 
-    let _be   = Outcome (Nothing, BadTree.Leaf (ExceptionBadOutcome TestException)) 
-    let _bv   = Outcome (Nothing, BadTree.Leaf (BoxedBadOutcome<_> 123)) 
-    let _bm1  = Outcome (Just 1 , BadTree.Leaf (MessageBadOutcome "Bad")) 
-    let _bm3  = Outcome (Just 3 , BadTree.Leaf (MessageBadOutcome "Bad")) 
+    let _bm   = Outcome (Nothing, BadTree.Leaf (MessageBadOutcome "Bad"))
+    let _be   = Outcome (Nothing, BadTree.Leaf (ExceptionBadOutcome TestException))
+    let _bv   = Outcome (Nothing, BadTree.Leaf (BoxedBadOutcome<_> 123))
+    let _bv1  = Outcome (Just 1 , BadTree.Leaf (BoxedBadOutcome<_> 123))
+    let _bm1  = Outcome (Just 1 , BadTree.Leaf (MessageBadOutcome "Bad"))
+    let _bm2  = Outcome (Just 2 , BadTree.Leaf (MessageBadOutcome "Bad"))
+    let _bm3  = Outcome (Just 3 , BadTree.Leaf (MessageBadOutcome "Bad"))
+    let _bf   = Outcome (Nothing, BadTree.Fork (BadTree.Leaf (MessageBadOutcome "Bad"), BadTree.Leaf (BoxedBadOutcome<_> 123)))
+    let _bf1  = Outcome (Just 1 , BadTree.Fork (BadTree.Leaf (MessageBadOutcome "Bad"), BadTree.Leaf (BoxedBadOutcome<_> 123)))
+    let _bf2  = Outcome (Just 2 , BadTree.Fork (BadTree.Leaf (MessageBadOutcome "Bad"), BadTree.Leaf (BoxedBadOutcome<_> 123)))
+    let _bf3  = Outcome (Just 3 , BadTree.Fork (BadTree.Leaf (MessageBadOutcome "Bad"), BadTree.Leaf (BoxedBadOutcome<_> 123)))
     let _de   = fun _ -> _e
     let _dp2  = fun v -> good (v + 2)
     let _dbm  = fun v -> _bm
     let _dbm1 = fun v -> _bm1
+    let _dbv  = fun v -> _bv
 
     check_eq _e   (empty                      ) "empty"
     check_eq _1   (good 1                     ) "good"
@@ -189,8 +197,84 @@ module TestOutcome =
     check_eq _bm  (forceBind _1 _dbm)   "forceBind - good 1 - bad"
     check_eq _bm  (forceBind _bm1 _de)  "forceBind - bad 1  - empty"
     check_eq _bm3 (forceBind _bm1 _dp2) "forceBind - bad 1  - +2"
-    check_eq _bm  (forceBind _bm1 _dbm) "forceBind - bad 1  - bad"
+    check_eq _bf  (forceBind _bm1 _dbv) "forceBind - bad 1  - bad value"
     check_eq _3   (_1 >>=! _dp2  )      ">>=! - good 1 - +2"
+
+    do
+      let a = arrow ((+) 2)
+      check_eq _3 (a 1) "arrow"
+
+      let b = kleisli a _dp2
+      check_eq _3 (b -1) "kleisli"
+
+      let c = forceKleisli a _dp2
+      check_eq _3 (c -1) "forceKleisli"
+
+    check_eq _1   (keepLeft _1 _1)      "keepLeft - good 1 - good 1"
+    check_eq _bm1 (keepLeft _1 _bm2)    "keepLeft - good 1 - bad 2"
+    check_eq _bm2 (keepLeft _bm2 _1)    "keepLeft - bad 2 - good 1"
+    check_eq _bf2 (keepLeft _bm2 _bv1)  "keepLeft - bad 2 - bad value"
+    check_eq _bm1 (_1 .>> _bm2) ".>> - good 1 - bad 2"
+    check_eq _bm1 (_1 <?> _bm2) "<?> - good 1 - bad 2"
+
+    check_eq _1   (keepRight _1 _1)     "keepRight - good 1 - good 1"
+    check_eq _bm2 (keepRight _1 _bm2)   "keepRight - good 1 - bad 2"
+    check_eq _bm1 (keepRight _bm2 _1)   "keepRight - bad 2 - good 1"
+    check_eq _bf1 (keepRight _bm2 _bv1) "keepRight - bad 2 - bad 3"
+    check_eq _bm1 (_bm2 >>. _1)   ">>. - bad 2 - good 1"
+
+    do
+      let f   = good ((+) 1)
+      let bf  = f <?> _bm
+
+      check_eq _e  (apply _e _e)    "apply - empty - empty"
+      check_eq _e  (apply _e _3)    "apply - empty - good 3"
+      check_eq _bm (apply _e _bm1)  "apply - empty - bad 1"
+      check_eq _e  (apply f  _e)    "apply - +1    - empty"
+      check_eq _4  (apply f  _3)    "apply - +1    - good 3"
+      check_eq _bm (apply f  _bm1)  "apply - +1    - bad 1"
+      check_eq _bm (apply bf  _e)   "apply - bad f  - empty"
+      check_eq _bm (apply bf  _2)   "apply - bad f  - good 3"
+      check_eq _bf (apply bf  _bv1) "apply - bad f  - bad value"
+
+      check_eq _4 ((good (+)) <*> _1 <*> _3) "<*> - + - good 1 - good 2"
+
+      check_eq _e   (forceApply _e _e)    "forceApply - empty   - empty"
+      check_eq _e   (forceApply _e _3)    "forceApply - empty   - good 3"
+      check_eq _bm  (forceApply _e _bm1)  "forceApply - empty   - bad 1"
+      check_eq _e   (forceApply f  _e)    "forceApply - good +1 - empty"
+      check_eq _4   (forceApply f  _3)    "forceApply - good +1 - good 2"
+      check_eq _bm2 (forceApply f  _bm1)  "forceApply - good +1 - bad 1"
+      check_eq _bm  (forceApply bf  _e)   "forceApply - bad f   - empty"
+      check_eq _bm3 (forceApply bf  _2)   "forceApply - bad f   - good 3"
+      check_eq _bf2 (forceApply bf  _bv1) "forceApply - bad f   - bad value"
+
+      check_eq _4 ((good (+)) <*>! _1 <*>! _3) "<*> - + - good 1 - good 2"
+
+    do
+      let m = (+) 1
+
+      check_eq _e   (map m _e)    "map - +1 - empty"
+      check_eq _4   (map m _3)    "map - +1 - good 3"
+      check_eq _bm  (map m _bm1)  "map - +1 - bad 1"
+      check_eq _4 (_3 |>> m) "|>> - +1 - Just 3"
+
+      check_eq _e   (forceMap m _e)    "forceMap - +1 - empty"
+      check_eq _4   (forceMap m _3)    "forceMap - +1 - good 3"
+      check_eq _bm2 (forceMap m _bm1)  "forceMap - +1 - bad 1"
+      check_eq _4 (_3 |>>! m) "|>>! - +1 - good 3"
+
+    do
+      let bm    = badMessage "Bad"
+      let bm1   = (good _1) <?> bm
+      let bm11  = (good _1 <?> _bm) <?> _bv
+      check_eq _e   (flatten _e)          "flatten - empty"
+      check_eq _e   (flatten (good _e))   "flatten - good empty"
+      check_eq _1   (flatten (good _1))   "flatten - good good 1"
+      check_eq _bm1 (flatten (good _bm1)) "flatten - good bad 1"
+      check_eq _bm  (flatten bm)          "flatten - bad"
+      check_eq _bm1 (flatten bm1)         "flatten - bad good 1"
+      check_eq _bf1 (flatten bm11)        "flatten - bad bad 1"
 
   let functionalTests () =
     highlight "TestOutcome.functionalTests"
@@ -199,7 +283,7 @@ module TestOutcome =
 
 // ----------------------------------------------------------------------------------------------
 [<EntryPoint>]
-let main argv = 
+let main argv =
   try
     TestMaybe.functionalTests ()
     TestOutcome.functionalTests ()
