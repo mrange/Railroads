@@ -19,9 +19,11 @@ namespace Railroads.Core
 // ----------------------------------------------------------------------------------------------
 [<AutoOpen>]
 module AutoOpen =
-  let maybe = Maybe.MaybeBuilder ()
+  let maybe         = Maybe.MaybeBuilder ()
 
-  let outcome = Outcome.OutcomeBuilder ()
+  let outcome       = Outcome.OutcomeBuilder ()
+
+  let forcedOutcome = Outcome.ForcedOutcomeBuilder ()
 
   let (|Good|Empty|Warning|Bad|) t =
     match t with

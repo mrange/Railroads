@@ -161,9 +161,9 @@ and 'T outcome    = Outcome<'T>
 module Outcome =
   [<GeneralizableValue>]
   let empty<'T>         = Outcome (Nothing, BadTree.Empty)
-  let inline outcome v b= Outcome (v, b)
-  let inline good    g  = outcome (Just g) BadTree.Empty
-  let inline bad     bt = outcome Nothing bt
+//  let inline outcome v b= Outcome (v, b)
+  let inline good    g  = Outcome (Just g , BadTree.Empty)
+  let inline bad     bt = Outcome (Nothing, bt)
   let badLeaf        b  = bad (BadTree.Leaf b)
   let badMessage     m  = badLeaf (MessageBadOutcome m)
   let badMessagef    f  = FSharp.Core.Printf.kprintf badMessage f
@@ -188,45 +188,38 @@ module Outcome =
     match t with
     | Outcome (Just tv, tbt) when tbt.IsGood ->
       match uf tv with
-      | Outcome (Just (), ubt)-> Outcome (Just tv, tbt.Join ubt)
-      | Outcome (Nothing, ubt)-> Outcome (Nothing, tbt.Join ubt)
-    | Outcome (tmv    , tbt)  -> Outcome (tmv, tbt)
+      | Outcome (_, ubt)-> Outcome (Just tv, tbt.Join ubt)
+    | Outcome (tmv, tbt)  -> Outcome (tmv, tbt)
 
   let forceBindLeft t uf=
     match t with
     | Outcome (Just tv, tbt)  ->
       match uf tv with
-      | Outcome (Just (), ubt)-> Outcome (Just tv, tbt.Join ubt)
-      | Outcome (Nothing, ubt)-> Outcome (Nothing, tbt.Join ubt)
-    | Outcome (tmv    , tbt)  -> Outcome (tmv, tbt)
+      | Outcome (_, ubt)-> Outcome (Just tv, tbt.Join ubt)
+    | Outcome (tmv, tbt)  -> Outcome (tmv, tbt)
 
   let bindRight t uf    =
     match t with
-    | Outcome (Just (), tbt) when tbt.IsGood ->
+    | Outcome (_, tbt) when tbt.IsGood ->
       match uf () with
       | Outcome (umv, ubt)    -> Outcome (umv, tbt.Join ubt)
-    | Outcome (tmv    , tbt)  -> Outcome (tmv, tbt)
+    | Outcome (_, tbt)  -> Outcome (Nothing, tbt)
 
   let forceBindRight t uf=
     match t with
-    | Outcome (Just (), tbt)  ->
+    | Outcome (_, tbt)  ->
       match uf () with
       | Outcome (umv, ubt)    -> Outcome (umv, tbt.Join ubt)
-    | Outcome (tmv    , tbt)  -> Outcome (tmv, tbt)
 
   let arrow f             = fun v -> good (f v)
   let kleisli tf uf       = fun v -> bind (tf v) uf
   let forceKleisli tf uf  = fun v -> forceBind (tf v) uf
 
-  let keepLeft t u        =
+  let left t u        =
     match t, u with
     | Outcome (tmv, tbt), Outcome (_, ubt)  -> Outcome (tmv, tbt.Join ubt)
 
-  let delayKeepLeft t uf  =
-    match t with
-    | Outcome (Just v, tbt), Outcome (_, ubt)  -> Outcome (tmv, tbt.Join ubt)
-
-  let keepRight t u     =
+  let right t u     =
     match t, u with
     | Outcome (_, tbt), Outcome (umv, ubt)  -> Outcome (umv, tbt.Join ubt)
 
@@ -269,14 +262,14 @@ module Outcome =
     printfn "Outcome(%s): %A " n (t : Outcome<_>)
     t
 
-  let andAlso t u       =
+  let ``and`` t u       =
     match t, u with
     | Outcome (Just tv, tbt) , Outcome (Just uv, ubt) ->
       Outcome (Just struct (tv, uv), tbt.Join ubt)
     | Outcome (_, tbt) , Outcome (_, ubt)             ->
       Outcome (Nothing, tbt.Join ubt)
 
-  let delayAndAlso t uf =
+  let andAlso t uf =
     match t with
     | Outcome (Just tv, tbt) when tbt.IsGood  ->
       match uf () with
@@ -287,7 +280,7 @@ module Outcome =
     | Outcome (_, tbt)                        ->
       Outcome (Nothing, tbt)
 
-  let orElse t u        =
+  let ``or`` t u        =
     match t, u with
     | Outcome (Just tv, tbt) , Outcome (_      , ubt) when tbt.IsGood             ->
       Outcome (Just tv, (tbt.Join (ubt.SuppressIfNeeded ())))
@@ -298,7 +291,7 @@ module Outcome =
     | Outcome (_      , tbt) , Outcome (_      , ubt)                             ->
       Outcome (Nothing, (tbt.Join ubt).SuppressIfNeeded ())
 
-  let delayOrElse t uf  =
+  let orElse t uf  =
     match t with
     | Outcome (Just tv, tbt) when tbt.IsGood  ->
       Outcome (Just tv, tbt)
@@ -317,7 +310,7 @@ module Outcome =
       if v tv then
         t
       else
-        keepLeft t (badMessage m)
+        left t (badMessage m)
     | _                                     -> t
 
   let forceValidate m v t =
@@ -326,7 +319,7 @@ module Outcome =
       if v tv then
         t
       else
-        keepLeft t (badMessage m)
+        left t (badMessage m)
     | _                     -> t
 
   let inline catch f    =
@@ -374,7 +367,7 @@ module Outcome =
         bt
     let bt = loop BadTree.Empty
 
-    outcome (Just (ra.ToArray ())) bt
+    Outcome (Just (ra.ToArray ()), bt)
 
   let fold folder initial (e : System.Collections.Generic.IEnumerable<_>) =
     use e   = e.GetEnumerator ()
@@ -400,21 +393,33 @@ module Outcome =
     member inline x.ReturnFrom  t       = t : Outcome<_>
     member inline x.Zero        ()      = good LanguagePrimitives.GenericZero
 
+  type ForcedOutcomeBuilder () =
+    member inline x.Bind        (t, uf) = forceBind t uf
+    member inline x.Delay       f       =
+      try
+        f ()
+      with
+      | e -> badException e
+    member inline x.Return      v       = good v
+    member inline x.ReturnFrom  t       = t : Outcome<_>
+    member inline x.Zero        ()      = good LanguagePrimitives.GenericZero
+
 type Outcome<'T> with
-  static member inline ( >>=  ) (t, uf)  = Outcome.bind          t uf
-  static member inline ( >>=! ) (t, uf)  = Outcome.forceBind     t uf
-  static member inline ( |>>  ) (t, m)   = Outcome.map           m t
-  static member inline ( |>>! ) (t, m)   = Outcome.forceMap      m t
-  static member inline ( <*>  ) (f, t)   = Outcome.apply         f t
-  static member inline ( <*>! ) (f, t)   = Outcome.forceApply    f t
-  static member inline ( <&>  ) (t, u)   = Outcome.andAlso       t u
-  static member inline ( <&&> ) (t, uf)  = Outcome.delayAndAlso  t uf
-  static member inline ( .>>. ) (t, u)   = Outcome.andAlso       t u
-  static member inline ( <|>  ) (t, u)   = Outcome.orElse        t u
-  static member inline ( <||> ) (t, uf)  = Outcome.delayOrElse   t uf
-  static member inline ( <?>  ) (t, u)   = Outcome.keepLeft      t u
-  static member inline ( .>>  ) (t, u)   = Outcome.keepLeft      t u
-  static member inline ( >>.  ) (t, u)   = Outcome.keepRight     t u
+  static member inline ( >>=  ) (t, uf)  = Outcome.bind           t uf
+  static member inline ( >>=! ) (t, uf)  = Outcome.forceBind      t uf
+  static member inline ( .>>  ) (t, uf)  = Outcome.bindLeft       t uf
+  static member inline ( .>>! ) (t, uf)  = Outcome.forceBindLeft  t uf
+  static member inline ( >>.  ) (t, uf)  = Outcome.bindRight      t uf
+  static member inline ( >>.! ) (t, uf)  = Outcome.forceBindRight t uf
+  static member inline ( |>>  ) (t, m)   = Outcome.map            m t
+  static member inline ( |>>! ) (t, m)   = Outcome.forceMap       m t
+  static member inline ( <*>  ) (f, t)   = Outcome.apply          f t
+  static member inline ( <*>! ) (f, t)   = Outcome.forceApply     f t
+  static member inline ( <&>  ) (t, u)   = Outcome.``and``        t u
+  static member inline ( <&&> ) (t, uf)  = Outcome.andAlso        t uf
+  static member inline ( <|>  ) (t, u)   = Outcome.``or``         t u
+  static member inline ( <||> ) (t, uf)  = Outcome.orElse         t uf
+  static member inline ( <?>  ) (t, u)   = Outcome.left           t u
 // ----------------------------------------------------------------------------------------------
 
 (*

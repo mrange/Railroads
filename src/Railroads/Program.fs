@@ -147,6 +147,59 @@ module TestOutcome =
 
   exception TestException
 
+  type Response               = Response
+  type Request                = Request
+  type CanonicalEmailAddress  = CanonicalEmailAddress
+
+  let scenario1 () =
+    let receiveRequest      ()                                            : Outcome<Request>                = badMessage "Bad"
+    let validateRequest     (req : Request)                               : Outcome<unit>                   = badMessage "Bad"
+    let canonicalizeEmail   (req : Request)                               : Outcome<CanonicalEmailAddress>  = badMessage "Bad"
+    let updateDbFromRequest (req : Request)                               : Outcome<unit>                   = badMessage "Bad"
+    let sendEmail           (req : Request) (cea : CanonicalEmailAddress) : Outcome<unit>                   = badMessage "Bad"
+    let returnMessage       (req : Request)                               : Outcome<Response>               = badMessage "Bad"
+
+    let executeUseCase1 =
+      // Receives the request
+      receiveRequest ()
+      // If the request was received successfully then validate it
+      .>> validateRequest
+      // If the request is valid then extract and canonicalize the email
+      //  As we need the req in the future as well pair req and email with <&>
+      >>= fun req -> good req <&> canonicalizeEmail req
+      // If the request was successfully canonicalized then update the db using the request
+      .>> fun struct (req, _)   -> updateDbFromRequest req
+      // If the db was successfully updated then send the email using the request and email address
+      .>> fun struct (req, cea) -> sendEmail req cea
+      // If the email was successfully sent then return a Response
+      >>= fun struct (req, _)   -> returnMessage req
+
+    let executeUseCase2 =
+      outcome {
+        let! req = receiveRequest       ()
+        do!        validateRequest      req
+        let! cea = canonicalizeEmail    req
+        do!        updateDbFromRequest  req
+        do!        sendEmail            req cea
+        return!    returnMessage req
+      }
+
+(*
+  let executeUseCase =
+    receiveRequest
+    >> validateRequest
+    >> canonicalizeEmail
+    >> updateDbFromRequest
+    >> sendEmail
+    >> returnMessage
+*)
+
+      
+
+
+    ()
+    
+
   let basicTests () =
     info "basicTests"
     let _e    = Outcome (Nothing, BadTree.Empty)
@@ -210,18 +263,16 @@ module TestOutcome =
       let c = forceKleisli a _dp2
       check_eq _3 (c -1) "forceKleisli"
 
-    check_eq _1   (keepLeft _1 _1)      "keepLeft - good 1 - good 1"
-    check_eq _bm1 (keepLeft _1 _bm2)    "keepLeft - good 1 - bad 2"
-    check_eq _bm2 (keepLeft _bm2 _1)    "keepLeft - bad 2 - good 1"
-    check_eq _bf2 (keepLeft _bm2 _bv1)  "keepLeft - bad 2 - bad value"
-    check_eq _bm1 (_1 .>> _bm2) ".>> - good 1 - bad 2"
+    check_eq _1   (left _1 _1)      "left - good 1 - good 1"
+    check_eq _bm1 (left _1 _bm2)    "left - good 1 - bad 2"
+    check_eq _bm2 (left _bm2 _1)    "left - bad 2 - good 1"
+    check_eq _bf2 (left _bm2 _bv1)  "left - bad 2 - bad value"
     check_eq _bm1 (_1 <?> _bm2) "<?> - good 1 - bad 2"
 
-    check_eq _1   (keepRight _1 _1)     "keepRight - good 1 - good 1"
-    check_eq _bm2 (keepRight _1 _bm2)   "keepRight - good 1 - bad 2"
-    check_eq _bm1 (keepRight _bm2 _1)   "keepRight - bad 2 - good 1"
-    check_eq _bf1 (keepRight _bm2 _bv1) "keepRight - bad 2 - bad 3"
-    check_eq _bm1 (_bm2 >>. _1)   ">>. - bad 2 - good 1"
+    check_eq _1   (right _1 _1)     "right - good 1 - good 1"
+    check_eq _bm2 (right _1 _bm2)   "right - good 1 - bad 2"
+    check_eq _bm1 (right _bm2 _1)   "right - bad 2 - good 1"
+    check_eq _bf1 (right _bm2 _bv1) "right - bad 2 - bad 3"
 
     do
       let f   = good ((+) 1)

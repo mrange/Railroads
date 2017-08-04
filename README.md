@@ -178,15 +178,68 @@ let executeUseCase =
   >> returnMessage
 ```
 
-How will this look with `Outcome`? First we create signatures for the functions used:
+This implies the following function signatures:
 
 ```fsharp
+val receiveRequest      : Option<unit>    -> Option<Request>
+val validateRequest     : Option<Request> -> Option<Request>
+val canonicalizeEmail   : Option<Request> -> Option<Request>
+val updateDbFromRequest : Option<Request> -> Option<Request>
+val sendEmail           : Option<Request> -> Option<Request>
+val returnMessage       : Option<Request> -> Option<Response>
+```
+
+For `Outcome` I expanded on the function signatures in order to make them a bit
+more like we are used to:
+
+```fsharp
+val receiveRequest      : unit    -> Outcome<Request>
 val validateRequest     : Request -> Outcome<unit>
 val canonicalizeEmail   : Request -> Outcome<CanonicalEmailAddress>
 val updateDbFromRequest : Request -> Outcome<unit>
 val sendEmail           : Request -> CanonicalEmailAddress -> Outcome<unit>
-  >> canonicalizeEmail
-  >> updateDbFromRequest
-  >> sendEmail
-  >> returnMessage
+val returnMessage       : Request -> Outcome<Response>
+```
+
+Using these function signatures we can recreate Scott's example using `Outcome`.
+
+```fsharp
+let executeUseCase =
+  // Receives the request
+  receiveRequest ()
+  // If the request was received successfully then validate it
+  .>> validateRequest
+  // If the request is valid then extract and canonicalize the email
+  //  As we need the req in the future as well pair req and email with <&>
+  >>= fun req -> good req <&> canonicalizeEmail req
+  // If the request was successfully canonicalized then update the db using the request
+  .>> fun struct (req, _)   -> updateDbFromRequest req
+  // If the db was successfully updated then send the email using the request and email address
+  .>> fun struct (req, cea) -> sendEmail req cea
+  // If the email was successfully sent then return a Response
+  >>= fun struct (req, _)   -> returnMessage req
+```
+
+Using Scott's signature it was up to each function to test the input parameter and take appropriate
+action. In addition the signatures were quite restricted.
+
+Using `Outcome` the tests are performed by the combinator operators such as `>>=` and `.>>` and they
+allow combination of functions with heterogeneous signatures.
+
+`>>=` is the well-known monadic `bind` that allows flexible combinations of `Outcome`s. `.>>` is
+a specialized version of `>>=` in that it discards good results on the right side, this is useful when combining
+functions that return `Outcome<unit>` like `validateRequest`.
+
+`Outcome`s can also be combined using F# computation expressions:
+
+```fsharp
+let executeUseCase =
+  outcome {
+    let! req = receiveRequest       ()
+    do!        validateRequest      req
+    let! cea = canonicalizeEmail    req
+    do!        updateDbFromRequest  req
+    do!        sendEmail            req cea
+    return!    returnMessage req
+  }
 ```
